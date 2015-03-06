@@ -45,6 +45,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
@@ -447,6 +448,11 @@ bool canSinkOrHoistInst(Instruction &I, AliasAnalysis *AA, DominatorTree *DT,
   } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
     // Don't sink or hoist dbg info; it's legal, but not useful.
     if (isa<DbgInfoIntrinsic>(I))
+      return false;
+
+    // Don't touch 'asm' calls, if we don't know what it does
+    const InlineAsm *ia = dyn_cast<InlineAsm>(CI->getCalledValue());
+    if (ia && ia->hasSideEffects())
       return false;
 
     // Handle simple cases by querying alias analysis.
