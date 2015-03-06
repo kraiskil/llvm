@@ -14,6 +14,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/CallSite.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
@@ -457,6 +458,20 @@ bool Instruction::mayReturn() const {
   if (const CallInst *CI = dyn_cast<CallInst>(this))
     return !CI->doesNotReturn();
   return true;
+}
+
+bool Instruction::mayHaveSideEffects() const {
+  if (mayWriteToMemory() || mayThrow() || !mayReturn())
+    return true;
+
+  const CallInst *CI;
+  if ((CI = dyn_cast<CallInst>(this)) &&
+      CI->isInlineAsm()) {
+    const InlineAsm *ia = dyn_cast<InlineAsm>(CI->getCalledValue());
+    assert(ia);
+    return ia->hasSideEffects();
+  }
+  return false;
 }
 
 /// isAssociative - Return true if the instruction is associative:
