@@ -193,6 +193,17 @@ bool FunctionAttrs::AddReadAttrs(const CallGraphSCC &SCC) {
         // Ignore calls to functions in the same SCC.
         if (CS.getCalledFunction() && SCCNodes.count(CS.getCalledFunction()))
           continue;
+        // TODO: this is a kludge around LLVM IR language lacking a
+        // 'sideeffect' attribute for functions: in the case of a
+        // 'asm sideeffect ... readnone'
+        // instructions, we don't mark this function as a readnone, because
+        // latter stages of optimation would remove a 'void @foo() readnone'
+        // caller as trivially dead.
+        CallInst *CI;
+        if ((CI = dyn_cast<CallInst>(I)) &&
+            CI->isInlineAsm())
+          return false;
+
         AliasAnalysis::ModRefBehavior MRB = AA->getModRefBehavior(CS);
         // If the call doesn't access arbitrary memory, we may be able to
         // figure out something.
