@@ -39,6 +39,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
@@ -2301,6 +2302,12 @@ bool GVN::processInstruction(Instruction *I) {
   // Instructions with void type don't return a value, so there's
   // no point in trying to find redundancies in them.
   if (I->getType()->isVoidTy()) return false;
+
+  // Inline assembly marked with sideeffect is never redundant.
+  if (CallInst *CI = dyn_cast<CallInst>(I))
+    if (InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledValue()))
+      if (IA->hasSideEffects())
+        return false;
 
   uint32_t NextNum = VN.getNextUnusedValueNumber();
   unsigned Num = VN.lookup_or_add(I);
