@@ -22,6 +22,7 @@
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PatternMatch.h"
@@ -63,8 +64,12 @@ struct SimpleValue {
 
   static bool canHandle(Instruction *Inst) {
     // This can only handle non-void readnone functions.
-    if (CallInst *CI = dyn_cast<CallInst>(Inst))
+    if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
+      if (InlineAsm *IA = dyn_cast<InlineAsm>(CI->getCalledValue()))
+        if (IA->hasSideEffects())
+          return false;
       return CI->doesNotAccessMemory() && !CI->getType()->isVoidTy();
+    }
     return isa<CastInst>(Inst) || isa<BinaryOperator>(Inst) ||
            isa<GetElementPtrInst>(Inst) || isa<CmpInst>(Inst) ||
            isa<SelectInst>(Inst) || isa<ExtractElementInst>(Inst) ||
@@ -216,6 +221,11 @@ struct CallValue {
     CallInst *CI = dyn_cast<CallInst>(Inst);
     if (!CI || !CI->onlyReadsMemory())
       return false;
+
+    if (CI && isa<InlineAsm>(CI->getCalledValue()))
+      if (dyn_cast<InlineAsm>(CI->getCalledValue())->hasSideEffects())
+        return false;
+
     return true;
   }
 };
